@@ -22,24 +22,13 @@ package main
 import (
 	"context"
 	"database/sql"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 )
-
-// AdminWebHint 是模块的「项目级管理后台描述」种子文件内容
-//
-// runtime 加载 .so 时通过 plugin.Lookup("AdminWebHint") 拿到本字符串，
-// 解析 admin-web.yaml 渲染左侧菜单 + 项目首页统计卡。
-// 平台 admin-server 编译模块时也读 admin-web.yaml + 调 AI 生成完整 spec 落库。
-//
-// 不接入管理后台的模块可以删掉这两行 + 删除 admin-web.yaml 文件（零侵入兼容）。
-//
-//go:embed admin-web.yaml
-var AdminWebHint string
 
 // PluginContext 由 Runtime 提供的共享资源
 //
@@ -48,14 +37,14 @@ var AdminWebHint string
 //
 // 后台 worker 正确写法：
 //
-//	func (p *TemplatePlugin) Init(ctx PluginContext) error {
+//	func (p *PermissionPlugin) Init(ctx PluginContext) error {
 //	    p.lifecycleCtx = ctx.LifecycleCtx
 //	    p.registerWorker = ctx.RegisterWorker
 //	    go p.runTicker()
 //	    return nil
 //	}
 //
-//	func (p *TemplatePlugin) runTicker() {
+//	func (p *PermissionPlugin) runTicker() {
 //	    done := p.registerWorker()  // 告诉 Runtime 多一个活跃 worker
 //	    defer done()                 // 退出时计数 -1
 //	    t := time.NewTicker(time.Second)
@@ -73,18 +62,6 @@ var AdminWebHint string
 // WebSocket 相关字段（v3 新增）：
 //   - Push / Emit / Broadcast / IsOnline: 模块给客户端主动发消息时调
 //   - RegisterAuth: 仅登录模块在 Init 里调一次，把鉴权回调交给 runtime
-//
-// PluginContext 里不存在的字段（重要，AI 经常写错）：
-//   - Redis / Cache / RedisClient：没有这些字段，写了直接 build fail。
-//     模块要用 Redis 时自己 import "github.com/redis/go-redis/v9"，连接信息
-//     从 ctx.Config 拿（平台注入的系统变量）：
-//     host := ctx.Config["REDIS_HOST_LAN"]   // 同机房优先，跨机房用 REDIS_HOST_WG
-//     port := ctx.Config["REDIS_PORT"]
-//     pwd  := ctx.Config["REDIS_PASSWORD"]   // 可能为空
-//     不需要在 plugin.yaml env_vars 声明（这些是平台注入的系统变量）。
-//   - HTTPClient / Tracer / Metrics：没有这些字段，自己用标准库 / OTel SDK 起。
-//   - 想加新字段必须先改 runtime/internal/plugin/interface.go 让平台同步注入，
-//     模块单方面声明拿不到值。
 type PluginContext struct {
 	DB             *sql.DB
 	Config         map[string]string
@@ -108,15 +85,6 @@ type PluginContext struct {
 	// IsOnline 查询用户是否有在线 WebSocket 连接
 	IsOnline func(userID string) bool
 
-	// Audit 上报操作审计 — runtime 端字段：runtime/internal/plugin/interface.go
-	//
-	// 在 admin 接口的写操作 handler 里调用：更新前后各 SELECT 一次拿 before/after，
-	// 然后 ctx.Audit(action, before, after, extra) 把 diff 上报给 runtime。
-	// runtime 异步 flush 到 admin-server 的 admin_audit_log 表。
-	//
-	// extra 可放额外字段（如审批人、原因等）。不调 Audit 不影响请求执行，只是审计记录里 before/after 为空。
-	Audit func(action string, before any, after any, extra map[string]any)
-
 	// RegisterAuth 登录模块向 runtime 注册鉴权回调
 	// 一个项目通常只有一个登录模块；普通业务模块这个字段保持 nil 即可
 	//
@@ -133,7 +101,7 @@ type PluginContext struct {
 // Plugin 是导出的插件实例
 // Runtime 通过 plugin.Lookup("Plugin") 加载此符号
 // 符号名必须为 "Plugin"，类型必须实现 GamePlugin 接口
-var Plugin = &TemplatePlugin{}
+var Plugin = &PermissionPlugin{}
 
 // Routes 声明本插件处理的所有 HTTP 路径
 // Runtime 在 plugin.Lookup("Routes") 时读取这个 map，把所有路径注册到全局路由表
@@ -149,7 +117,15 @@ var Plugin = &TemplatePlugin{}
 // ServeHTTP 或内部 mux，多个插件之间会互相拦截请求导致 404。
 var Routes = map[string]http.HandlerFunc{
 	// 前台接口示例（以 /api/ 开头）
-	"GET /api/permission/hello": handleHello,
+	"GET /api/permission/hello":              handleHello,
+	"POST /api/admin-role/create":            handleRoleCreate,
+	"GET /api/admin-role/list":               handleRoleList,
+	"GET /api/admin-role/detail":             handleRoleDetail,
+	"PUT /api/admin-role/update":             handleRoleUpdate,
+	"POST /api/admin-role/permission-create": handlePermissionCreate,
+	"GET /api/admin-role/permission-list":    handlePermissionList,
+	"PUT /api/admin-role/assign-permissions": handleAssignPermissions,
+	"POST /api/admin-role/check-permission":  handleCheckPermission,
 	// 后台管理接口示例（以 /{admin_prefix}/api/ 开头，部署时替换为项目 UUID）
 	"POST /{admin_prefix}/api/permission/admin/ping": handleAdminPing,
 	// 注：内部自测端点 POST /_internal/selftest 由 selftest.go 在 init() 时
@@ -165,7 +141,39 @@ func handleAdminPing(w http.ResponseWriter, r *http.Request) {
 	Plugin.handleAdminPing(w, r)
 }
 
-// TemplatePlugin 实现 GamePlugin 接口
+func handleRoleCreate(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleRoleCreate(w, r)
+}
+
+func handleRoleList(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleRoleList(w, r)
+}
+
+func handleRoleDetail(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleRoleDetail(w, r)
+}
+
+func handleRoleUpdate(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleRoleUpdate(w, r)
+}
+
+func handlePermissionCreate(w http.ResponseWriter, r *http.Request) {
+	Plugin.handlePermissionCreate(w, r)
+}
+
+func handlePermissionList(w http.ResponseWriter, r *http.Request) {
+	Plugin.handlePermissionList(w, r)
+}
+
+func handleAssignPermissions(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleAssignPermissions(w, r)
+}
+
+func handleCheckPermission(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleCheckPermission(w, r)
+}
+
+// PermissionPlugin 实现 GamePlugin 接口
 //
 // 接口定义：
 //
@@ -176,7 +184,7 @@ func handleAdminPing(w http.ResponseWriter, r *http.Request) {
 //
 // 注意：不要在这个 struct 上添加 ServeHTTP 方法或 mux 字段。
 // 所有 HTTP 路由通过顶层 Routes 全局变量声明。
-type TemplatePlugin struct {
+type PermissionPlugin struct {
 	db             *sql.DB
 	logger         *slog.Logger
 	lifecycleCtx   context.Context
@@ -188,16 +196,23 @@ type TemplatePlugin struct {
 	emit      func(userID, code string, data any) bool
 	broadcast func(ctx context.Context, userIDs []string, code string, data any) ([]int64, error)
 	isOnline  func(userID string) bool
+
+	mu          sync.Mutex
+	roles       map[string]roleRecord
+	permissions map[string]permissionRecord
+	rolePerms   map[string]map[string]bool
 }
 
 // version 由 admin-server 在编译 .so 时通过 -ldflags "-X <module_path>.version=<deploy_tag>" 注入。
 // 本地 go test 拿到的是 "dev"；线上 runtime 加载后调 Version() 拿到的是本次部署 tag。
 var version = "dev"
 
-func (p *TemplatePlugin) Name() string    { return "permission" }
-func (p *TemplatePlugin) Version() string { return version }
+func main() {}
 
-func (p *TemplatePlugin) Init(ctx PluginContext) error {
+func (p *PermissionPlugin) Name() string    { return "permission" }
+func (p *PermissionPlugin) Version() string { return version }
+
+func (p *PermissionPlugin) Init(ctx PluginContext) error {
 	p.db = ctx.DB
 	p.logger = ctx.Logger
 	p.lifecycleCtx = ctx.LifecycleCtx
@@ -210,8 +225,11 @@ func (p *TemplatePlugin) Init(ctx PluginContext) error {
 	p.isOnline = ctx.IsOnline
 	// 仅登录模块需要：把鉴权回调注册给 runtime；普通业务模块这一行可删
 	p.registerAuthIfLoginModule(ctx)
-	p.logger.Info("插件初始化", "name", p.Name(), "version", p.Version())
 	// 建表、读 config；不要建 mux 或注册路由
+	if err := p.initStorage(ctx.LifecycleCtx); err != nil {
+		return err
+	}
+	p.logger.Info("插件初始化", "name", p.Name(), "version", p.Version())
 	// 后台 worker 启动示例（见文件顶部 PluginContext 注释）：
 	//   go p.runTicker()
 	return nil
@@ -220,7 +238,7 @@ func (p *TemplatePlugin) Init(ctx PluginContext) error {
 // Shutdown 插件优雅关闭
 // ctx 携带超时（通常 3s）；LifecycleCtx 在 Reload 开始时已经 cancel，
 // 后台 worker 应通过 lifecycleCtx.Done() 先行停止，无需在这里重复等待。
-func (p *TemplatePlugin) Shutdown(ctx context.Context) error {
+func (p *PermissionPlugin) Shutdown(ctx context.Context) error {
 	fmt.Printf("[%s] 插件关闭\n", p.Name())
 	// 如果有需要等待的资源（连接池 flush、文件关闭等），在 ctx.Done() 前完成：
 	// select {
@@ -233,11 +251,11 @@ func (p *TemplatePlugin) Shutdown(ctx context.Context) error {
 }
 
 // handleHello 业务逻辑（方法接收者），由包级 handler 转发
-func (p *TemplatePlugin) handleHello(w http.ResponseWriter, r *http.Request) {
+func (p *PermissionPlugin) handleHello(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, map[string]any{"module": p.Name(), "version": p.Version()}, "ok")
 }
 
-func (p *TemplatePlugin) handleAdminPing(w http.ResponseWriter, r *http.Request) {
+func (p *PermissionPlugin) handleAdminPing(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, nil, "pong")
 }
 
