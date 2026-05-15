@@ -5,6 +5,10 @@
 name: "permission"
 description: "权限点公共模块"
 
+# 公共模块依赖（task/inner_plugin.md §5.1）：本模块加载前必须先加载这些模块
+depends_on:
+  - role
+
 # 模块需要的环境变量声明（重要，AI 必须填写）
 #
 # 平台行为：
