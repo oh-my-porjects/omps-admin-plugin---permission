@@ -44,13 +44,14 @@ type permissionResponse struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
-// 平台短 ID 标准 12 字符 base62, 语义前缀让 UI 缩短显示也能区分
+// 平台短 ID 标准 12 字符 base62, 完整语义名让 UI 前 8 位完全独立可区分
+// 跟 role/account 公共模块对齐
 const (
-	rootRoleID       = "RoleRoot0001"
-	rootPermID       = "PermSysMan01"
-	supportRoleID    = "RoleSupp0001"
-	unassignedPermID = "PermUsrRead1"
-	disabledRoleID   = "RoleDisb0001"
+	rootRoleID       = "Root00000001"
+	rootPermID       = "SysManage001"
+	supportRoleID    = "Support00001"
+	unassignedPermID = "UsersRead001"
+	disabledRoleID   = "Disabled0001"
 )
 
 var (
