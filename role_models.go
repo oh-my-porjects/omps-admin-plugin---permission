@@ -44,12 +44,13 @@ type permissionResponse struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
+// 平台短 ID 标准 12 字符 base62, 语义前缀让 UI 缩短显示也能区分
 const (
-	rootRoleID       = "00000000Root"
-	rootPermID       = "00000000SysP"
-	supportRoleID    = "00000000Supp"
-	unassignedPermID = "00000000UsrR"
-	disabledRoleID   = "00000000Disb"
+	rootRoleID       = "RoleRoot0001"
+	rootPermID       = "PermSysMan01"
+	supportRoleID    = "RoleSupp0001"
+	unassignedPermID = "PermUsrRead1"
+	disabledRoleID   = "RoleDisb0001"
 )
 
 var (
