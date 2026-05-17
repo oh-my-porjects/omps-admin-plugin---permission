@@ -46,53 +46,63 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 			return err
 		}
 	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_roles (id, name, status, description)
-		VALUES ($1, 'Root', 'enabled', 'system root role')
-		ON CONFLICT (id) DO NOTHING`, rootRoleID); err != nil {
+	// 加 name / code 业务字段 UNIQUE 索引让 ON CONFLICT (name/code) 可用
+	if _, err := p.db.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS uniq_permission_roles_name ON permission_roles(name)`); err != nil {
 		return err
 	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_permissions (id, code, name, description)
-		VALUES ($1, 'system.manage', 'System Manage', 'root management permission')
-		ON CONFLICT (id) DO NOTHING`, rootPermID); err != nil {
+	if _, err := p.db.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS uniq_permission_permissions_code ON permission_permissions(code)`); err != nil {
 		return err
 	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_permissions (id, code, name, description)
-		VALUES ($1, 'users.read', 'View Users', 'permission intentionally not assigned to root')
-		ON CONFLICT (id) DO NOTHING`, unassignedPermID); err != nil {
-		return err
+
+	// seed system 角色 + 权限：ID 由 generate_short_id() 真随机生成
+	// 业务代码用 name / code 字段查找，不依赖硬编码 ID 常量
+	seedRoles := []struct {
+		name, status, desc, parentName string
+	}{
+		{"Root", "enabled", "system root role", ""},
+		{"Support", "enabled", "bootstrap child role", "Root"},
+		{"Disabled Role", "disabled", "bootstrap disabled role", ""},
 	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_roles (id, name, parent_id, status, description)
-		VALUES ($1, 'Support', $2, 'enabled', 'bootstrap child role')
-		ON CONFLICT (id) DO NOTHING`, supportRoleID, rootRoleID); err != nil {
-		return err
+	for _, sr := range seedRoles {
+		if sr.parentName == "" {
+			if _, err := p.db.ExecContext(ctx, `
+				INSERT INTO permission_roles (name, status, description)
+				VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING`,
+				sr.name, sr.status, sr.desc); err != nil {
+				return err
+			}
+		} else {
+			if _, err := p.db.ExecContext(ctx, `
+				INSERT INTO permission_roles (name, parent_id, status, description)
+				VALUES ($1, (SELECT id FROM permission_roles WHERE name=$2 LIMIT 1), $3, $4)
+				ON CONFLICT (name) DO NOTHING`,
+				sr.name, sr.parentName, sr.status, sr.desc); err != nil {
+				return err
+			}
+		}
 	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_roles (id, name, status, description)
-		VALUES ($1, 'Disabled Role', 'disabled', 'bootstrap disabled role')
-		ON CONFLICT (id) DO NOTHING`, disabledRoleID); err != nil {
-		return err
+
+	seedPerms := []struct{ code, name, desc string }{
+		{"system.manage", "System Manage", "root management permission"},
+		{"users.read", "View Users", "permission intentionally not assigned to root"},
 	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
-		ON CONFLICT (role_id, permission_id) DO NOTHING`, rootRoleID, rootPermID); err != nil {
-		return err
+	for _, sp := range seedPerms {
+		if _, err := p.db.ExecContext(ctx, `
+			INSERT INTO permission_permissions (code, name, description)
+			VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING`, sp.code, sp.name, sp.desc); err != nil {
+			return err
+		}
 	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
-		ON CONFLICT (role_id, permission_id) DO NOTHING`, supportRoleID, rootPermID); err != nil {
-		return err
-	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO permission_role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
-		ON CONFLICT (role_id, permission_id) DO NOTHING`, disabledRoleID, rootPermID); err != nil {
-		return err
+
+	// 角色权限绑定：Root / Support / Disabled Role → system.manage
+	for _, roleName := range []string{"Root", "Support", "Disabled Role"} {
+		if _, err := p.db.ExecContext(ctx, `
+			INSERT INTO permission_role_permissions (role_id, permission_id)
+			SELECT r.id, p.id FROM permission_roles r, permission_permissions p
+			WHERE r.name = $1 AND p.code = 'system.manage'
+			ON CONFLICT (role_id, permission_id) DO NOTHING`, roleName); err != nil {
+			return err
+		}
 	}
 	return nil
 }
