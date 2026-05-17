@@ -45,14 +45,14 @@ type permissionResponse struct {
 }
 
 const (
-	rootRoleID       = "00000000-0000-0000-0000-000000000001"
-	rootPermID       = "00000000-0000-0000-0000-000000000002"
-	supportRoleID    = "00000000-0000-0000-0000-000000000003"
-	unassignedPermID = "00000000-0000-0000-0000-000000000004"
-	disabledRoleID   = "00000000-0000-0000-0000-000000000005"
+	rootRoleID       = "00000000Root"
+	rootPermID       = "00000000SysP"
+	supportRoleID    = "00000000Supp"
+	unassignedPermID = "00000000UsrR"
+	disabledRoleID   = "00000000Disb"
 )
 
 var (
-	uuidRE           = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	shortIDRE        = regexp.MustCompile(`^[A-Za-z0-9]{12}$`)
 	permissionCodeRE = regexp.MustCompile(`^[a-z0-9._-]{3,80}$`)
 )

@@ -13,9 +13,9 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 	stmts := []string{
 		`CREATE EXTENSION IF NOT EXISTS pgcrypto`,
 		`CREATE TABLE IF NOT EXISTS permission_roles (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
 			name TEXT NOT NULL,
-			parent_id UUID,
+			parent_id TEXT,
 			description TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'enabled',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -24,7 +24,7 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 			CONSTRAINT permission_roles_no_self_parent CHECK (parent_id IS NULL OR parent_id <> id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS permission_permissions (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
 			code TEXT NOT NULL UNIQUE,
 			name TEXT NOT NULL,
 			description TEXT NOT NULL DEFAULT '',
@@ -32,9 +32,9 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
 		`CREATE TABLE IF NOT EXISTS permission_role_permissions (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			role_id UUID NOT NULL,
-			permission_id UUID NOT NULL,
+			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
+			role_id TEXT NOT NULL,
+			permission_id TEXT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			UNIQUE (role_id, permission_id),
 			CONSTRAINT permission_role_permissions_role_fk FOREIGN KEY (role_id) REFERENCES permission_roles(id) ON DELETE CASCADE,

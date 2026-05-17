@@ -70,7 +70,7 @@ func (p *PermissionPlugin) permissionSet(ctx context.Context, roleID string) (ma
 		return nil, nil
 	}
 	if p.db != nil {
-		rows, err := p.db.QueryContext(ctx, "SELECT permission_id::text FROM permission_role_permissions WHERE role_id=$1", roleID)
+		rows, err := p.db.QueryContext(ctx, "SELECT permission_id FROM permission_role_permissions WHERE role_id=$1", roleID)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (p *PermissionPlugin) permissionSet(ctx context.Context, roleID string) (ma
 func (p *PermissionPlugin) rolePermissions(ctx context.Context, roleID string) ([]permissionResponse, error) {
 	if p.db != nil {
 		rows, err := p.db.QueryContext(ctx, `
-			SELECT p.id::text, p.code, p.name, p.description, p.created_at
+			SELECT p.id, p.code, p.name, p.description, p.created_at
 			FROM permission_role_permissions rp
 			JOIN permission_permissions p ON p.id = rp.permission_id
 			WHERE rp.role_id=$1
@@ -159,7 +159,7 @@ func (p *PermissionPlugin) childrenWithinPermissionSet(ctx context.Context, role
 
 func (p *PermissionPlugin) childRoleIDs(ctx context.Context, roleID string) ([]string, error) {
 	if p.db != nil {
-		rows, err := p.db.QueryContext(ctx, "SELECT id::text FROM permission_roles WHERE parent_id=$1", roleID)
+		rows, err := p.db.QueryContext(ctx, "SELECT id FROM permission_roles WHERE parent_id=$1", roleID)
 		if err != nil {
 			return nil, err
 		}

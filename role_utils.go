@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -52,8 +51,13 @@ func validStatus(s string) bool {
 	return s == "enabled" || s == "disabled"
 }
 
+func validShortID(s string) bool {
+	return shortIDRE.MatchString(s)
+}
+
+// validUUID 保留作为 validShortID 别名（外部调用兼容）
 func validUUID(s string) bool {
-	return uuidRE.MatchString(s)
+	return validShortID(s)
 }
 
 func validPermissionCode(s string) bool {
@@ -95,10 +99,19 @@ func decodeJSON(r *http.Request, dst any) error {
 	return json.NewDecoder(r.Body).Decode(dst)
 }
 
-func newUUIDLikeID() string {
+func newShortID() string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	n := time.Now().UnixNano()
-	return fmt.Sprintf("00000000-0000-4000-8000-%012x", n&0xffffffffffff)
+	out := make([]byte, 12)
+	for i := 0; i < 12; i++ {
+		out[i] = chars[n%62]
+		n /= 62
+		if n == 0 { n = time.Now().UnixNano() + int64(i) }
+	}
+	return string(out)
 }
+
+func newUUIDLikeID() string { return newShortID() }
 
 func sortedKeys(m map[string]bool) []string {
 	keys := make([]string, 0, len(m))

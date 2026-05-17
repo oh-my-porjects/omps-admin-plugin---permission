@@ -30,7 +30,7 @@ func (p *PermissionPlugin) createRole(ctx context.Context, name, parentID, descr
 		err := p.db.QueryRowContext(ctx, `
 			INSERT INTO permission_roles (name, parent_id, description, status)
 			VALUES ($1, $2, $3, $4)
-			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at`,
+			RETURNING id, name, COALESCE(parent_id, ''), description, status, created_at, updated_at`,
 			name, parent, description, status).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
 		return role, err
 	}
@@ -54,7 +54,7 @@ func (p *PermissionPlugin) updateRole(ctx context.Context, role roleRecord) (rol
 			UPDATE permission_roles
 			SET name=$1, parent_id=$2, description=$3, status=$4, updated_at=now()
 			WHERE id=$5
-			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at`,
+			RETURNING id, name, COALESCE(parent_id, ''), description, status, created_at, updated_at`,
 			role.Name, parent, role.Description, role.Status, role.ID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
 		return role, err
 	}
@@ -69,7 +69,7 @@ func (p *PermissionPlugin) getRole(ctx context.Context, roleID string) (roleReco
 	if p.db != nil {
 		var role roleRecord
 		err := p.db.QueryRowContext(ctx, `
-			SELECT id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at
+			SELECT id, name, COALESCE(parent_id, ''), description, status, created_at, updated_at
 			FROM permission_roles WHERE id=$1`, roleID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
 		if errors.Is(err, sql.ErrNoRows) {
 			return roleRecord{}, false, nil
@@ -144,7 +144,7 @@ func (p *PermissionPlugin) listRoles(ctx context.Context, f roleListFilter) ([]r
 		}
 		args = append(args, f.PageSize, (f.Page-1)*f.PageSize)
 		rows, err := p.db.QueryContext(ctx, `
-			SELECT r.id::text, r.name, COALESCE(r.parent_id::text, ''), COALESCE(p.name, ''), r.status, r.description, r.created_at
+			SELECT r.id, r.name, COALESCE(r.parent_id, ''), COALESCE(p.name, ''), r.status, r.description, r.created_at
 			FROM permission_roles r
 			LEFT JOIN permission_roles p ON p.id = r.parent_id
 			WHERE `+whereSQL+`
@@ -221,7 +221,7 @@ func (p *PermissionPlugin) createPermission(ctx context.Context, code, name, des
 		err := p.db.QueryRowContext(ctx, `
 			INSERT INTO permission_permissions (code, name, description)
 			VALUES ($1, $2, $3)
-			RETURNING id::text, code, name, description, created_at, updated_at`,
+			RETURNING id, code, name, description, created_at, updated_at`,
 			code, name, description).Scan(&perm.ID, &perm.Code, &perm.Name, &perm.Description, &perm.CreatedAt, &perm.UpdatedAt)
 		return perm, err
 	}
@@ -243,7 +243,7 @@ func (p *PermissionPlugin) getPermissionByCode(ctx context.Context, code string)
 	if p.db != nil {
 		var perm permissionRecord
 		err := p.db.QueryRowContext(ctx, `
-			SELECT id::text, code, name, description, created_at, updated_at
+			SELECT id, code, name, description, created_at, updated_at
 			FROM permission_permissions WHERE code=$1`, code).Scan(&perm.ID, &perm.Code, &perm.Name, &perm.Description, &perm.CreatedAt, &perm.UpdatedAt)
 		if errors.Is(err, sql.ErrNoRows) {
 			return permissionRecord{}, false, nil
@@ -275,7 +275,7 @@ func (p *PermissionPlugin) listPermissions(ctx context.Context, keyword string, 
 		}
 		args = append(args, pageSize, (page-1)*pageSize)
 		rows, err := p.db.QueryContext(ctx, `
-			SELECT id::text, code, name, description, created_at
+			SELECT id, code, name, description, created_at
 			FROM permission_permissions
 			WHERE `+where+`
 			ORDER BY code
