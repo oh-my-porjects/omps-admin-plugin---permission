@@ -30,6 +30,19 @@ views:
         type: page
         title: 新建权限点
         api: POST /api/permission/create
+        fields:
+          - field: code
+            title: 权限码
+            type: string
+            required: true
+            placeholder: 例如 admin.account.manage
+          - field: name
+            title: 名称
+            type: string
+            required: true
+          - field: description
+            title: 说明
+            type: text
   - key: role_permission_binding
     type: table
     title: 角色权限绑定
