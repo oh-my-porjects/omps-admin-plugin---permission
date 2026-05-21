@@ -50,8 +50,14 @@ views:
     columns:
       - field: role_id
         title: 角色 ID
+      - field: role_name
+        title: 角色
       - field: permission_id
         title: 权限 ID
+      - field: permission_code
+        title: 权限码
+      - field: permission_name
+        title: 权限
 roles:
   - code: admin
     title: 超级管理员

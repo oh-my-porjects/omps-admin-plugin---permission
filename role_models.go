@@ -44,6 +44,15 @@ type permissionResponse struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
+type rolePermissionBindingResponse struct {
+	RoleID         string `json:"role_id"`
+	RoleName       string `json:"role_name"`
+	PermissionID   string `json:"permission_id"`
+	PermissionCode string `json:"permission_code"`
+	PermissionName string `json:"permission_name"`
+	CreatedAt      string `json:"created_at,omitempty"`
+}
+
 // 平台短 ID 标准 12 字符 base62, 完整语义名让 UI 前 8 位完全独立可区分
 // 跟 role/account 公共模块对齐
 const (

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"sort"
+	"strconv"
 	"time"
 )
 
@@ -126,6 +128,77 @@ func (p *PermissionPlugin) rolePermissions(ctx context.Context, roleID string) (
 		}
 	}
 	return items, nil
+}
+
+func (p *PermissionPlugin) listRolePermissionBindings(ctx context.Context, roleID string, page, pageSize int) ([]rolePermissionBindingResponse, int, error) {
+	if p.db != nil {
+		where := ""
+		args := []any{}
+		if roleID != "" {
+			args = append(args, roleID)
+			where = "WHERE rp.role_id=$1"
+		}
+		var total int
+		if err := p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM permission_role_permissions rp "+where, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+		args = append(args, pageSize, (page-1)*pageSize)
+		rows, err := p.db.QueryContext(ctx, `
+			SELECT rp.role_id, r.name, rp.permission_id, p.code, p.name, rp.created_at
+			FROM permission_role_permissions rp
+			JOIN permission_roles r ON r.id = rp.role_id
+			JOIN permission_permissions p ON p.id = rp.permission_id
+			`+where+`
+			ORDER BY r.name, p.code
+			LIMIT $`+strconv.Itoa(len(args)-1)+` OFFSET $`+strconv.Itoa(len(args)), args...)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer rows.Close()
+		items := []rolePermissionBindingResponse{}
+		for rows.Next() {
+			var item rolePermissionBindingResponse
+			var createdAt time.Time
+			if err := rows.Scan(&item.RoleID, &item.RoleName, &item.PermissionID, &item.PermissionCode, &item.PermissionName, &createdAt); err != nil {
+				return nil, 0, err
+			}
+			item.CreatedAt = formatTime(createdAt)
+			items = append(items, item)
+		}
+		return items, total, rows.Err()
+	}
+	p.ensureMemoryStore()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	items := []rolePermissionBindingResponse{}
+	for rid, set := range p.rolePerms {
+		if roleID != "" && rid != roleID {
+			continue
+		}
+		role := p.roles[rid]
+		for pid := range set {
+			perm, ok := p.permissions[pid]
+			if !ok {
+				continue
+			}
+			items = append(items, rolePermissionBindingResponse{
+				RoleID:         rid,
+				RoleName:       role.Name,
+				PermissionID:   pid,
+				PermissionCode: perm.Code,
+				PermissionName: perm.Name,
+			})
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].RoleName == items[j].RoleName {
+			return items[i].PermissionCode < items[j].PermissionCode
+		}
+		return items[i].RoleName < items[j].RoleName
+	})
+	total := len(items)
+	start, end := pageBounds(total, page, pageSize)
+	return items[start:end], total, nil
 }
 
 func (p *PermissionPlugin) rolePermissionsWithinParent(ctx context.Context, roleID, parentID string) (bool, error) {

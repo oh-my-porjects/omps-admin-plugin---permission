@@ -231,6 +231,26 @@ func (p *PermissionPlugin) handlePermissionList(w http.ResponseWriter, r *http.R
 	writeJSON(w, 0, map[string]any{"items": items, "total": total}, "")
 }
 
+func (p *PermissionPlugin) handleRolePermissionsList(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, pageSize, ok := parsePage(q.Get("page"), q.Get("page_size"))
+	if !ok {
+		writeJSON(w, 2168, nil, "分页参数不合法")
+		return
+	}
+	roleID := strings.TrimSpace(q.Get("role_id"))
+	if roleID != "" && !validUUID(roleID) {
+		writeJSON(w, 2168, nil, "角色 ID 参数格式不合法")
+		return
+	}
+	items, total, err := p.listRolePermissionBindings(r.Context(), roleID, page, pageSize)
+	if err != nil {
+		writeJSON(w, 2169, nil, "查询角色权限绑定失败")
+		return
+	}
+	writeJSON(w, 0, map[string]any{"items": items, "total": total}, "")
+}
+
 func (p *PermissionPlugin) handleAssignPermissions(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		RoleID        string    `json:"role_id"`

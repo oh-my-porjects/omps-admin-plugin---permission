@@ -121,11 +121,11 @@ var Routes = map[string]http.HandlerFunc{
 	// 权限点 CRUD（路径跟 admin-web.yaml view.api 对齐）
 	// task/inner_plugin.md §4.3: permission 模块只负责「权限点」，角色相关由 role 模块负责
 	// 避免跟 admin_role 老 plugin / role 新 plugin 路由冲突，全部 rename 到 /api/permission/*
-	"GET /api/permission/list":                 handlePermissionList,
-	"POST /api/permission/create":              handlePermissionCreate,
-	"GET /api/permission/role-permissions":     handleAssignPermissions,
-	"PUT /api/permission/assign-permissions":   handleAssignPermissions,
-	"POST /api/permission/check-permission":    handleCheckPermission,
+	"GET /api/permission/list":               handlePermissionList,
+	"POST /api/permission/create":            handlePermissionCreate,
+	"GET /api/permission/role-permissions":   handleRolePermissionsList,
+	"PUT /api/permission/assign-permissions": handleAssignPermissions,
+	"POST /api/permission/check-permission":  handleCheckPermission,
 	// 后台管理接口示例（以 /{admin_prefix}/api/ 开头，部署时替换为项目 UUID）
 	"POST /{admin_prefix}/api/permission/admin/ping": handleAdminPing,
 	// 注：内部自测端点 POST /_internal/selftest 由 selftest.go 在 init() 时
@@ -167,6 +167,10 @@ func handlePermissionList(w http.ResponseWriter, r *http.Request) {
 
 func handleAssignPermissions(w http.ResponseWriter, r *http.Request) {
 	Plugin.handleAssignPermissions(w, r)
+}
+
+func handleRolePermissionsList(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleRolePermissionsList(w, r)
 }
 
 func handleCheckPermission(w http.ResponseWriter, r *http.Request) {
