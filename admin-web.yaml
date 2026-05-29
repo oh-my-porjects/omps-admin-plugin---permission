@@ -17,8 +17,9 @@ views:
     title: 权限点
     api: GET /api/permission/list
     columns:
-      - field: id
+      - field: permission_id
         title: ID
+        render: short_id
       - field: code
         title: 权限码
       - field: name
