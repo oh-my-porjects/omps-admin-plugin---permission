@@ -55,9 +55,9 @@ func validShortID(s string) bool {
 	return shortIDRE.MatchString(s)
 }
 
-// validUUID 保留作为 validShortID 别名（外部调用兼容）
+// validUUID 保留旧函数名，兼容平台短 ID 和早期 UUID ID。
 func validUUID(s string) bool {
-	return validShortID(s)
+	return validShortID(s) || uuidRE.MatchString(s)
 }
 
 func validPermissionCode(s string) bool {
@@ -106,7 +106,9 @@ func newShortID() string {
 	for i := 0; i < 12; i++ {
 		out[i] = chars[n%62]
 		n /= 62
-		if n == 0 { n = time.Now().UnixNano() + int64(i) }
+		if n == 0 {
+			n = time.Now().UnixNano() + int64(i)
+		}
 	}
 	return string(out)
 }

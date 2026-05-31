@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,7 @@ func (p *PermissionPlugin) permissionsExist(ctx context.Context, ids []string) b
 func (p *PermissionPlugin) assignPermissions(ctx context.Context, roleID string, permissionIDs []string) (time.Time, error) {
 	now := time.Now().UTC()
 	if p.db != nil {
+		roleTable := p.roleTableName(ctx)
 		tx, err := p.db.BeginTx(ctx, nil)
 		if err != nil {
 			return time.Time{}, err
@@ -47,7 +49,7 @@ func (p *PermissionPlugin) assignPermissions(ctx context.Context, roleID string,
 				return time.Time{}, err
 			}
 		}
-		if err := tx.QueryRowContext(ctx, "UPDATE permission_roles SET updated_at=now() WHERE id=$1 RETURNING updated_at", roleID).Scan(&now); err != nil {
+		if err := tx.QueryRowContext(ctx, "UPDATE "+roleTable+" SET updated_at=now() WHERE id::text=$1 RETURNING updated_at", roleID).Scan(&now); err != nil {
 			return time.Time{}, err
 		}
 		return now, tx.Commit()
@@ -84,7 +86,32 @@ func (p *PermissionPlugin) permissionSet(ctx context.Context, roleID string) (ma
 			}
 			set[id] = true
 		}
-		return set, rows.Err()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if p.ensureRoleModulePermissionTables(ctx) {
+			roleRows, err := p.db.QueryContext(ctx, `
+				SELECT pp.id
+				FROM role_role_permissions rrp
+				JOIN role_permissions rp ON rp.id::text = rrp.permission_id::text
+				JOIN permission_permissions pp ON pp.code = rp.code
+				WHERE rrp.role_id::text=$1`, roleID)
+			if err != nil {
+				return nil, err
+			}
+			defer roleRows.Close()
+			for roleRows.Next() {
+				var id string
+				if err := roleRows.Scan(&id); err != nil {
+					return nil, err
+				}
+				set[id] = true
+			}
+			if err := roleRows.Err(); err != nil {
+				return nil, err
+			}
+		}
+		return set, nil
 	}
 	p.ensureMemoryStore()
 	p.mu.Lock()
@@ -97,12 +124,30 @@ func (p *PermissionPlugin) permissionSet(ctx context.Context, roleID string) (ma
 
 func (p *PermissionPlugin) rolePermissions(ctx context.Context, roleID string) ([]permissionResponse, error) {
 	if p.db != nil {
-		rows, err := p.db.QueryContext(ctx, `
-			SELECT p.id, p.code, p.name, p.description, p.created_at
+		rawSQL := `
+			SELECT rp.permission_id, p.code, p.name, p.description, p.created_at, 0 AS source_rank
 			FROM permission_role_permissions rp
 			JOIN permission_permissions p ON p.id = rp.permission_id
-			WHERE rp.role_id=$1
-			ORDER BY p.code`, roleID)
+			WHERE rp.role_id=$1`
+		if p.ensureRoleModulePermissionTables(ctx) {
+			rawSQL += `
+			UNION ALL
+			SELECT COALESCE(pp.id, rp.id::text), rp.code, rp.name, rp.description, rp.created_at, 1 AS source_rank
+			FROM role_role_permissions rrp
+			JOIN role_permissions rp ON rp.id::text = rrp.permission_id::text
+			LEFT JOIN permission_permissions pp ON pp.code = rp.code
+			WHERE rrp.role_id::text=$1`
+		}
+		rows, err := p.db.QueryContext(ctx, `
+			WITH raw_permissions AS (`+rawSQL+`),
+			permissions AS (
+				SELECT DISTINCT ON (code) permission_id, code, name, description, created_at
+				FROM raw_permissions
+				ORDER BY code, source_rank, created_at
+			)
+			SELECT permission_id, code, name, description, created_at
+			FROM permissions
+			ORDER BY code`, roleID)
 		if err != nil {
 			return nil, err
 		}
@@ -132,24 +177,52 @@ func (p *PermissionPlugin) rolePermissions(ctx context.Context, roleID string) (
 
 func (p *PermissionPlugin) listRolePermissionBindings(ctx context.Context, roleID string, page, pageSize int) ([]rolePermissionBindingResponse, int, error) {
 	if p.db != nil {
-		where := ""
+		roleTable := p.roleTableName(ctx)
+		rawSQL := `
+			SELECT rp.role_id, rp.permission_id, p.code AS permission_code, p.name AS permission_name, rp.created_at, 0 AS source_rank
+			FROM permission_role_permissions rp
+			JOIN permission_permissions p ON p.id = rp.permission_id`
+		if p.ensureRoleModulePermissionTables(ctx) {
+			rawSQL += `
+			UNION ALL
+			SELECT rrp.role_id::text, COALESCE(pp.id, rp.id::text), rp.code, rp.name, rrp.created_at, 1 AS source_rank
+			FROM role_role_permissions rrp
+			JOIN role_permissions rp ON rp.id::text = rrp.permission_id::text
+			LEFT JOIN permission_permissions pp ON pp.code = rp.code`
+		}
+		where := []string{"1=1"}
 		args := []any{}
 		if roleID != "" {
 			args = append(args, roleID)
-			where = "WHERE rp.role_id=$1"
+			where = append(where, "b.role_id=$1")
 		}
+		if roleTable == "role_roles" {
+			where = append(where, "r.name NOT IN ('Root', 'Support', 'Disabled Role')")
+		}
+		whereSQL := "WHERE " + strings.Join(where, " AND ")
+		cteSQL := `
+			WITH raw_bindings AS (` + rawSQL + `),
+			bindings AS (
+				SELECT DISTINCT ON (role_id, permission_code)
+					role_id, permission_id, permission_code, permission_name, created_at
+				FROM raw_bindings
+				ORDER BY role_id, permission_code, source_rank, created_at
+			)`
 		var total int
-		if err := p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM permission_role_permissions rp "+where, args...).Scan(&total); err != nil {
+		if err := p.db.QueryRowContext(ctx, cteSQL+`
+			SELECT COUNT(*)
+			FROM bindings b
+			JOIN `+roleTable+` r ON r.id::text = b.role_id
+			`+whereSQL, args...).Scan(&total); err != nil {
 			return nil, 0, err
 		}
 		args = append(args, pageSize, (page-1)*pageSize)
-		rows, err := p.db.QueryContext(ctx, `
-			SELECT rp.role_id, r.name, rp.permission_id, p.code, p.name, rp.created_at
-			FROM permission_role_permissions rp
-			JOIN permission_roles r ON r.id = rp.role_id
-			JOIN permission_permissions p ON p.id = rp.permission_id
-			`+where+`
-			ORDER BY r.name, p.code
+		rows, err := p.db.QueryContext(ctx, cteSQL+`
+			SELECT b.role_id, r.name, b.permission_id, b.permission_code, b.permission_name, b.created_at
+			FROM bindings b
+			JOIN `+roleTable+` r ON r.id::text = b.role_id
+			`+whereSQL+`
+			ORDER BY r.name, b.permission_code
 			LIMIT $`+strconv.Itoa(len(args)-1)+` OFFSET $`+strconv.Itoa(len(args)), args...)
 		if err != nil {
 			return nil, 0, err
@@ -232,7 +305,8 @@ func (p *PermissionPlugin) childrenWithinPermissionSet(ctx context.Context, role
 
 func (p *PermissionPlugin) childRoleIDs(ctx context.Context, roleID string) ([]string, error) {
 	if p.db != nil {
-		rows, err := p.db.QueryContext(ctx, "SELECT id FROM permission_roles WHERE parent_id=$1", roleID)
+		roleTable := p.roleTableName(ctx)
+		rows, err := p.db.QueryContext(ctx, "SELECT id::text FROM "+roleTable+" WHERE parent_id::text=$1", roleID)
 		if err != nil {
 			return nil, err
 		}
@@ -277,6 +351,20 @@ func (p *PermissionPlugin) roleDirectlyHasPermission(ctx context.Context, roleID
 	if p.db != nil {
 		var exists bool
 		err := p.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM permission_role_permissions WHERE role_id=$1 AND permission_id=$2)", roleID, permissionID).Scan(&exists)
+		if err != nil || exists {
+			return err == nil && exists
+		}
+		if !p.ensureRoleModulePermissionTables(ctx) {
+			return false
+		}
+		err = p.db.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM role_role_permissions rrp
+				JOIN role_permissions rp ON rp.id::text = rrp.permission_id::text
+				JOIN permission_permissions pp ON pp.code = rp.code
+				WHERE rrp.role_id::text=$1 AND pp.id=$2
+			)`, roleID, permissionID).Scan(&exists)
 		return err == nil && exists
 	}
 	p.ensureMemoryStore()

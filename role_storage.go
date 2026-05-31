@@ -12,6 +12,19 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 	}
 	stmts := []string{
 		`CREATE EXTENSION IF NOT EXISTS pgcrypto`,
+		`CREATE OR REPLACE FUNCTION generate_short_id() RETURNS TEXT AS $$
+			DECLARE
+				chars TEXT := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+				result TEXT := '';
+				i INTEGER := 0;
+			BEGIN
+				FOR i IN 1..12 LOOP
+					result := result || substr(chars, floor(random() * length(chars) + 1)::int, 1);
+				END LOOP;
+				RETURN result;
+			END;
+		$$ LANGUAGE plpgsql`,
+		// Legacy compatibility table. New role data belongs to role.role_roles.
 		`CREATE TABLE IF NOT EXISTS permission_roles (
 			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
 			name TEXT NOT NULL,
@@ -32,14 +45,13 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
 		`CREATE TABLE IF NOT EXISTS permission_role_permissions (
-			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
-			role_id TEXT NOT NULL,
-			permission_id TEXT NOT NULL,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			UNIQUE (role_id, permission_id),
-			CONSTRAINT permission_role_permissions_role_fk FOREIGN KEY (role_id) REFERENCES permission_roles(id) ON DELETE CASCADE,
-			CONSTRAINT permission_role_permissions_permission_fk FOREIGN KEY (permission_id) REFERENCES permission_permissions(id) ON DELETE CASCADE
-		)`,
+				id TEXT PRIMARY KEY DEFAULT generate_short_id(),
+				role_id TEXT NOT NULL,
+				permission_id TEXT NOT NULL,
+				created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+				UNIQUE (role_id, permission_id),
+				CONSTRAINT permission_role_permissions_permission_fk FOREIGN KEY (permission_id) REFERENCES permission_permissions(id) ON DELETE CASCADE
+			)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := p.db.ExecContext(ctx, stmt); err != nil {
@@ -53,33 +65,8 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 	if _, err := p.db.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS uniq_permission_permissions_code ON permission_permissions(code)`); err != nil {
 		return err
 	}
-
-	// seed system 角色 + 权限：ID 由 generate_short_id() 真随机生成
-	// 业务代码用 name / code 字段查找，不依赖硬编码 ID 常量
-	seedRoles := []struct {
-		name, status, desc, parentName string
-	}{
-		{"Root", "enabled", "system root role", ""},
-		{"Support", "enabled", "bootstrap child role", "Root"},
-		{"Disabled Role", "disabled", "bootstrap disabled role", ""},
-	}
-	for _, sr := range seedRoles {
-		if sr.parentName == "" {
-			if _, err := p.db.ExecContext(ctx, `
-				INSERT INTO permission_roles (name, status, description)
-				VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING`,
-				sr.name, sr.status, sr.desc); err != nil {
-				return err
-			}
-		} else {
-			if _, err := p.db.ExecContext(ctx, `
-				INSERT INTO permission_roles (name, parent_id, status, description)
-				VALUES ($1, (SELECT id FROM permission_roles WHERE name=$2 LIMIT 1), $3, $4)
-				ON CONFLICT (name) DO NOTHING`,
-				sr.name, sr.parentName, sr.status, sr.desc); err != nil {
-				return err
-			}
-		}
+	if _, err := p.db.ExecContext(ctx, `ALTER TABLE permission_role_permissions DROP CONSTRAINT IF EXISTS permission_role_permissions_role_fk`); err != nil {
+		return err
 	}
 
 	seedPerms := []struct{ code, name, desc string }{
@@ -93,16 +80,50 @@ func (p *PermissionPlugin) initStorage(ctx context.Context) error {
 			return err
 		}
 	}
+	return p.syncRoleModulePermissionBindings(ctx)
+}
 
-	// 角色权限绑定：Root / Support / Disabled Role → system.manage
-	for _, roleName := range []string{"Root", "Support", "Disabled Role"} {
-		if _, err := p.db.ExecContext(ctx, `
-			INSERT INTO permission_role_permissions (role_id, permission_id)
-			SELECT r.id, p.id FROM permission_roles r, permission_permissions p
-			WHERE r.name = $1 AND p.code = 'system.manage'
-			ON CONFLICT (role_id, permission_id) DO NOTHING`, roleName); err != nil {
-			return err
-		}
+func (p *PermissionPlugin) ensureRoleModulePermissionTables(ctx context.Context) bool {
+	return p.tableExists(ctx, "role_roles") && p.tableExists(ctx, "role_permissions") && p.tableExists(ctx, "role_role_permissions")
+}
+
+func (p *PermissionPlugin) tableExists(ctx context.Context, tableName string) bool {
+	if p.db == nil {
+		return false
+	}
+	var exists bool
+	err := p.db.QueryRowContext(ctx, "SELECT to_regclass($1) IS NOT NULL", tableName).Scan(&exists)
+	return err == nil && exists
+}
+
+func (p *PermissionPlugin) roleTableName(ctx context.Context) string {
+	if p.db != nil && p.tableExists(ctx, "role_roles") {
+		return "role_roles"
+	}
+	return "permission_roles"
+}
+
+func (p *PermissionPlugin) syncRoleModulePermissionBindings(ctx context.Context) error {
+	if !p.ensureRoleModulePermissionTables(ctx) {
+		return nil
+	}
+	if _, err := p.db.ExecContext(ctx, `
+		INSERT INTO permission_permissions (code, name, description)
+		SELECT code, name, description FROM role_permissions
+		ON CONFLICT (code) DO NOTHING`); err != nil {
+		return err
+	}
+	_, err := p.db.ExecContext(ctx, `
+		INSERT INTO permission_role_permissions (role_id, permission_id)
+		SELECT rrp.role_id::text, pp.id
+		FROM role_role_permissions rrp
+		JOIN role_roles r ON r.id::text = rrp.role_id::text
+		JOIN role_permissions rp ON rp.id::text = rrp.permission_id::text
+		JOIN permission_permissions pp ON pp.code = rp.code
+		WHERE r.name NOT IN ('Root', 'Support', 'Disabled Role')
+		ON CONFLICT (role_id, permission_id) DO NOTHING`)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -119,15 +140,9 @@ func (p *PermissionPlugin) ensureMemoryStore() {
 	if p.rolePerms == nil {
 		p.rolePerms = map[string]map[string]bool{}
 	}
-	if _, exists := p.roles[rootRoleID]; !exists {
+	if _, exists := p.permissions[rootPermID]; !exists {
 		now := time.Now().UTC()
-		p.roles[rootRoleID] = roleRecord{ID: rootRoleID, Name: "Root", Status: "enabled", CreatedAt: now, UpdatedAt: now}
 		p.permissions[rootPermID] = permissionRecord{ID: rootPermID, Code: "system.manage", Name: "System Manage", CreatedAt: now, UpdatedAt: now}
 		p.permissions[unassignedPermID] = permissionRecord{ID: unassignedPermID, Code: "users.read", Name: "View Users", Description: "permission intentionally not assigned to root", CreatedAt: now, UpdatedAt: now}
-		p.roles[supportRoleID] = roleRecord{ID: supportRoleID, Name: "Support", ParentID: rootRoleID, Status: "enabled", Description: "bootstrap child role", CreatedAt: now, UpdatedAt: now}
-		p.roles[disabledRoleID] = roleRecord{ID: disabledRoleID, Name: "Disabled Role", Status: "disabled", Description: "bootstrap disabled role", CreatedAt: now, UpdatedAt: now}
-		p.rolePerms[rootRoleID] = map[string]bool{rootPermID: true}
-		p.rolePerms[supportRoleID] = map[string]bool{rootPermID: true}
-		p.rolePerms[disabledRoleID] = map[string]bool{rootPermID: true}
 	}
 }

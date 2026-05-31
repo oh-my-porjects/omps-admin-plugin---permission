@@ -233,15 +233,15 @@
       "path": "/api/permission/role-permissions",
       "endpoint_key": "GET /api/permission/role-permissions",
       "title": "查询角色权限绑定",
-      "description": "分页查询角色与权限点的绑定关系，可按角色 ID 过滤。",
+      "description": "分页查询角色与权限点的绑定关系，角色来源为 role 模块，可按角色 ID 过滤。",
       "auth": "admin_session",
       "params": [
         {
           "name": "role_id",
           "type": "string",
           "required": false,
-          "constraint": "12 位 base62 ID",
-          "description": "角色 ID。"
+          "constraint": "12 位 base62 ID 或 UUID",
+          "description": "role 模块里的角色 ID。"
         },
         {
           "name": "page",
@@ -337,8 +337,8 @@
           "name": "role_id",
           "type": "string",
           "required": true,
-          "constraint": "12 位 base62 ID",
-          "description": "要分配权限的角色 ID。"
+          "constraint": "12 位 base62 ID 或 UUID",
+          "description": "要分配权限的 role 模块角色 ID。"
         },
         {
           "name": "permission_ids",
@@ -350,7 +350,7 @@
         }
       ],
       "request_example": {
-        "role_id": "Support00001",
+        "role_id": "AdminRole001",
         "permission_ids": [
           "UsersRead001"
         ]
@@ -410,7 +410,7 @@
       "response_example": {
         "status": 0,
         "data": {
-          "role_id": "Support00001",
+          "role_id": "AdminRole001",
           "permission_ids": [
             "UsersRead001"
           ],
@@ -431,8 +431,8 @@
           "name": "role_id",
           "type": "string",
           "required": true,
-          "constraint": "12 位 base62 ID",
-          "description": "角色 ID。"
+          "constraint": "12 位 base62 ID 或 UUID",
+          "description": "role 模块里的角色 ID。"
         },
         {
           "name": "permission_code",
@@ -443,7 +443,7 @@
         }
       ],
       "request_example": {
-        "role_id": "Support00001",
+        "role_id": "AdminRole001",
         "permission_code": "users.read"
       },
       "response": {

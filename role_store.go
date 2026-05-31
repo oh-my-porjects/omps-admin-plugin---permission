@@ -22,15 +22,16 @@ type roleListFilter struct {
 
 func (p *PermissionPlugin) createRole(ctx context.Context, name, parentID, description, status string) (roleRecord, error) {
 	if p.db != nil {
+		table := p.roleTableName(ctx)
 		var role roleRecord
 		var parent sql.NullString
 		if parentID != "" {
 			parent = sql.NullString{String: parentID, Valid: true}
 		}
 		err := p.db.QueryRowContext(ctx, `
-			INSERT INTO permission_roles (name, parent_id, description, status)
+			INSERT INTO `+table+` (name, parent_id, description, status)
 			VALUES ($1, $2, $3, $4)
-			RETURNING id, name, COALESCE(parent_id, ''), description, status, created_at, updated_at`,
+			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at`,
 			name, parent, description, status).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
 		return role, err
 	}
@@ -46,15 +47,16 @@ func (p *PermissionPlugin) createRole(ctx context.Context, name, parentID, descr
 func (p *PermissionPlugin) updateRole(ctx context.Context, role roleRecord) (roleRecord, error) {
 	role.UpdatedAt = time.Now().UTC()
 	if p.db != nil {
+		table := p.roleTableName(ctx)
 		var parent sql.NullString
 		if role.ParentID != "" {
 			parent = sql.NullString{String: role.ParentID, Valid: true}
 		}
 		err := p.db.QueryRowContext(ctx, `
-			UPDATE permission_roles
+			UPDATE `+table+`
 			SET name=$1, parent_id=$2, description=$3, status=$4, updated_at=now()
-			WHERE id=$5
-			RETURNING id, name, COALESCE(parent_id, ''), description, status, created_at, updated_at`,
+			WHERE id::text=$5
+			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at`,
 			role.Name, parent, role.Description, role.Status, role.ID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
 		return role, err
 	}
@@ -67,10 +69,11 @@ func (p *PermissionPlugin) updateRole(ctx context.Context, role roleRecord) (rol
 
 func (p *PermissionPlugin) getRole(ctx context.Context, roleID string) (roleRecord, bool, error) {
 	if p.db != nil {
+		table := p.roleTableName(ctx)
 		var role roleRecord
 		err := p.db.QueryRowContext(ctx, `
-			SELECT id, name, COALESCE(parent_id, ''), description, status, created_at, updated_at
-			FROM permission_roles WHERE id=$1`, roleID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
+			SELECT id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at
+			FROM `+table+` WHERE id::text=$1`, roleID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
 		if errors.Is(err, sql.ErrNoRows) {
 			return roleRecord{}, false, nil
 		}
@@ -90,19 +93,20 @@ func (p *PermissionPlugin) roleExists(ctx context.Context, roleID string) bool {
 
 func (p *PermissionPlugin) siblingNameExists(ctx context.Context, excludeRoleID, parentID, name string) bool {
 	if p.db != nil {
+		table := p.roleTableName(ctx)
 		var count int
 		var err error
 		if parentID == "" {
 			if excludeRoleID == "" {
-				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM permission_roles WHERE parent_id IS NULL AND name=$1`, name).Scan(&count)
+				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE parent_id IS NULL AND name=$1`, name).Scan(&count)
 			} else {
-				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM permission_roles WHERE parent_id IS NULL AND name=$1 AND id<>$2`, name, excludeRoleID).Scan(&count)
+				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE parent_id IS NULL AND name=$1 AND id::text<>$2`, name, excludeRoleID).Scan(&count)
 			}
 		} else {
 			if excludeRoleID == "" {
-				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM permission_roles WHERE parent_id=$1 AND name=$2`, parentID, name).Scan(&count)
+				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE parent_id::text=$1 AND name=$2`, parentID, name).Scan(&count)
 			} else {
-				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM permission_roles WHERE parent_id=$1 AND name=$2 AND id<>$3`, parentID, name, excludeRoleID).Scan(&count)
+				err = p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE parent_id::text=$1 AND name=$2 AND id::text<>$3`, parentID, name, excludeRoleID).Scan(&count)
 			}
 		}
 		return err == nil && count > 0
@@ -120,13 +124,14 @@ func (p *PermissionPlugin) siblingNameExists(ctx context.Context, excludeRoleID,
 
 func (p *PermissionPlugin) listRoles(ctx context.Context, f roleListFilter) ([]roleResponse, int, error) {
 	if p.db != nil {
+		table := p.roleTableName(ctx)
 		where, args := []string{"1=1"}, []any{}
 		if f.ParentSet {
 			if f.ParentID == "" {
 				where = append(where, "r.parent_id IS NULL")
 			} else {
 				args = append(args, f.ParentID)
-				where = append(where, fmt.Sprintf("r.parent_id=$%d", len(args)))
+				where = append(where, fmt.Sprintf("r.parent_id::text=$%d", len(args)))
 			}
 		}
 		if f.Status != "" {
@@ -139,14 +144,14 @@ func (p *PermissionPlugin) listRoles(ctx context.Context, f roleListFilter) ([]r
 		}
 		whereSQL := strings.Join(where, " AND ")
 		var total int
-		if err := p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM permission_roles r WHERE "+whereSQL, args...).Scan(&total); err != nil {
+		if err := p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" r WHERE "+whereSQL, args...).Scan(&total); err != nil {
 			return nil, 0, err
 		}
 		args = append(args, f.PageSize, (f.Page-1)*f.PageSize)
 		rows, err := p.db.QueryContext(ctx, `
-			SELECT r.id, r.name, COALESCE(r.parent_id, ''), COALESCE(p.name, ''), r.status, r.description, r.created_at
-			FROM permission_roles r
-			LEFT JOIN permission_roles p ON p.id = r.parent_id
+			SELECT r.id::text, r.name, COALESCE(r.parent_id::text, ''), COALESCE(p.name, ''), r.status, r.description, r.created_at
+			FROM `+table+` r
+			LEFT JOIN `+table+` p ON p.id::text = r.parent_id::text
 			WHERE `+whereSQL+`
 			ORDER BY r.created_at DESC, r.id
 			LIMIT $`+strconv.Itoa(len(args)-1)+` OFFSET $`+strconv.Itoa(len(args)), args...)
