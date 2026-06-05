@@ -126,8 +126,8 @@ var Routes = map[string]http.HandlerFunc{
 	"GET /api/permission/role-permissions":   handleRolePermissionsList,
 	"PUT /api/permission/assign-permissions": handleAssignPermissions,
 	"POST /api/permission/check-permission":  handleCheckPermission,
-	// 后台管理接口示例（以 /{admin_prefix}/api/ 开头，部署时替换为项目 UUID）
-	"POST /{admin_prefix}/api/permission/admin/ping": handleAdminPing,
+	// 后台管理接口示例（直接声明真实字面量路径）
+	"POST /api/permission/admin/ping": handleAdminPing,
 	// 注：内部自测端点 POST /_internal/selftest 由 selftest.go 在 init() 时
 	// 注册进来，避免 var Routes 初始化循环依赖（selftest 需要回查 Routes）
 }
