@@ -35,4 +35,39 @@ noise_fields: []
 #     seed_data:
 #       - {id: "{range_tag}001", name: "示例 1", created_at: "now()"}
 #       - {id: "{range_tag}002", name: "示例 2", created_at: "now()"}
-tables: {}
+tables:
+  permission_roles:
+    primary_key: id
+    range_filter: "id LIKE '{range_tag}%' OR name LIKE '{range_tag}%' OR description LIKE '{range_tag}%'"
+    snapshot_view: [id, name, parent_id, description, status, created_at, updated_at]
+    snapshot_summary: "name, status, parent_id"
+    seed_data:
+      - id: "{range_tag}role_root"
+        name: "{range_tag}root"
+        parent_id: null
+        description: "测试根角色"
+        status: "enabled"
+        created_at: "now()"
+        updated_at: "now()"
+  permission_permissions:
+    primary_key: id
+    range_filter: "id LIKE '{range_tag}%' OR code LIKE '{range_tag}%' OR name LIKE '{range_tag}%'"
+    snapshot_view: [id, code, name, description, created_at, updated_at]
+    snapshot_summary: "code, name"
+    seed_data:
+      - id: "{range_tag}perm_read"
+        code: "{range_tag}permission.read"
+        name: "{range_tag}权限读取"
+        description: "测试权限点"
+        created_at: "now()"
+        updated_at: "now()"
+  permission_role_permissions:
+    primary_key: id
+    range_filter: "role_id LIKE '{range_tag}%' OR permission_id LIKE '{range_tag}%'"
+    snapshot_view: [id, role_id, permission_id, created_at]
+    snapshot_summary: "role_id, permission_id"
+    seed_data:
+      - id: "{range_tag}binding_read"
+        role_id: "{range_tag}role_root"
+        permission_id: "{range_tag}perm_read"
+        created_at: "now()"

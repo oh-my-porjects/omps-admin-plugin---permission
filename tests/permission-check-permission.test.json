@@ -1,0 +1,32 @@
+{
+  "api": "POST /api/permission/check-permission",
+  "cases": [
+    {
+      "name": "校验角色权限 成功",
+      "kind": "http",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/api/permission/check-permission",
+      "expect_status": 200,
+      "body": {
+        "role_id": "AdminRole001",
+        "permission_code": "users.read"
+      },
+      "expect_field": {
+        "status": 0
+      }
+    },
+    {
+      "name": "校验角色权限 参数非法",
+      "kind": "http",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/api/permission/check-permission",
+      "expect_status": 200,
+      "expect_field": {
+        "status": 2171
+      },
+      "body": {}
+    }
+  ]
+}

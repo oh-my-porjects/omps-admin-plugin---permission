@@ -34,7 +34,15 @@
           "version": "dev"
         },
         "msg": "ok"
-      }
+      },
+      "rules": [
+        {
+          "category": "security",
+          "title": "模块探活 鉴权边界",
+          "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：返回 permission 模块名称和当前版本。",
+          "code_loc": "main.go:120"
+        }
+      ]
     },
     {
       "method": "GET",
@@ -130,7 +138,15 @@
           "total": 0
         },
         "msg": ""
-      }
+      },
+      "rules": [
+        {
+          "category": "security",
+          "title": "查询权限点列表 鉴权边界",
+          "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：分页查询权限点，可按关键词搜索权限点编码、名称或说明。",
+          "code_loc": "main.go:124"
+        }
+      ]
     },
     {
       "method": "POST",
@@ -226,7 +242,15 @@
           "created_at": "2026-05-28T00:00:00Z"
         },
         "msg": ""
-      }
+      },
+      "rules": [
+        {
+          "category": "security",
+          "title": "创建权限点 鉴权边界",
+          "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：创建一个权限点，权限点编码在模块内唯一。",
+          "code_loc": "main.go:125"
+        }
+      ]
     },
     {
       "method": "GET",
@@ -323,7 +347,15 @@
           "total": 0
         },
         "msg": ""
-      }
+      },
+      "rules": [
+        {
+          "category": "security",
+          "title": "查询角色权限绑定 鉴权边界",
+          "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：分页查询角色与权限点的绑定关系，角色来源为 role 模块，可按角色 ID 过滤。",
+          "code_loc": "main.go:126"
+        }
+      ]
     },
     {
       "method": "PUT",
@@ -417,7 +449,15 @@
           "updated_at": "2026-05-28T00:00:00Z"
         },
         "msg": ""
-      }
+      },
+      "rules": [
+        {
+          "category": "security",
+          "title": "分配角色权限 鉴权边界",
+          "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：覆盖指定角色绑定的权限点列表，并校验不能超出父角色权限范围，也不能导致子角色越权。",
+          "code_loc": "main.go:127"
+        }
+      ]
     },
     {
       "method": "POST",
@@ -458,7 +498,11 @@
           {
             "name": "role_status",
             "type": "string",
-            "description": "角色状态，enabled 或 disabled。"
+            "description": "角色状态，enabled 或 disabled。",
+            "enum": {
+              "enabled": "启用",
+              "disabled": "停用"
+            }
           }
         ],
         "error_codes": [
@@ -491,7 +535,15 @@
           "role_status": "enabled"
         },
         "msg": ""
-      }
+      },
+      "rules": [
+        {
+          "category": "security",
+          "title": "校验角色权限 鉴权边界",
+          "body": "该接口按 auth=internal 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：检查指定角色是否直接拥有指定权限点编码，且角色状态为 enabled。",
+          "code_loc": "main.go:128"
+        }
+      ]
     },
     {
       "method": "POST",
@@ -511,7 +563,15 @@
         "status": 0,
         "data": null,
         "msg": "pong"
-      }
+      },
+      "rules": [
+        {
+          "category": "security",
+          "title": "后台连通性检查 鉴权边界",
+          "body": "该接口按 auth=api_key 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：管理端连通性检查接口，返回 pong。",
+          "code_loc": "main.go:130"
+        }
+      ]
     }
   ]
 }
