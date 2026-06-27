@@ -1,66 +1,65 @@
 module: permission
 module_title: 权限管理
 menus:
-  - key: permissions
-    title: 权限点
-    icon: safety
-    roles: [admin, developer]
-    views: [permission_list]
-  - key: role_bindings
-    title: 角色-权限绑定
-    icon: api
-    roles: [admin, developer]
-    views: [role_permission_binding]
+- key: permissions
+  title: 权限点
+  icon: safety
+  views:
+  - permission_list
+  permission_key: permission.permissions.page
+  default_effect: visible
+- key: role_bindings
+  title: 角色-权限绑定
+  icon: api
+  views:
+  - role_permission_binding
+  permission_key: permission.role_bindings.page
+  default_effect: visible
 views:
-  - key: permission_list
-    type: table
-    title: 权限点
-    api: GET /api/permission/list
-    columns:
-      - field: permission_id
-        title: ID
-        render: short_id
-      - field: code
-        title: 权限码
-      - field: name
-        title: 名称
-      - field: description
-        title: 说明
-    actions:
-      - key: create
-        type: page
-        title: 新建权限点
-        api: POST /api/permission/create
-        fields:
-          - field: code
-            title: 权限码
-            type: string
-            required: true
-            placeholder: 例如 admin.account.manage
-          - field: name
-            title: 名称
-            type: string
-            required: true
-          - field: description
-            title: 说明
-            type: text
-  - key: role_permission_binding
-    type: table
-    title: 角色权限绑定
-    api: GET /api/permission/role-permissions
-    columns:
-      - field: role_id
-        title: 角色 ID
-      - field: role_name
-        title: 角色
-      - field: permission_id
-        title: 权限 ID
-      - field: permission_code
-        title: 权限码
-      - field: permission_name
-        title: 权限
-roles:
-  - code: admin
-    title: 超级管理员
-  - code: developer
-    title: 开发者
+- key: permission_list
+  type: table
+  title: 权限点
+  api: GET /api/permission/list
+  columns:
+  - field: permission_id
+    title: ID
+    render: short_id
+  - field: code
+    title: 权限码
+  - field: name
+    title: 名称
+  - field: description
+    title: 说明
+  actions:
+  - key: create
+    type: page
+    title: 新建权限点
+    api: POST /api/permission/create
+    fields:
+    - field: code
+      title: 权限码
+      type: string
+      required: true
+      placeholder: 例如 admin.account.manage
+    - field: name
+      title: 名称
+      type: string
+      required: true
+    - field: description
+      title: 说明
+      type: text
+- key: role_permission_binding
+  type: table
+  title: 角色权限绑定
+  api: GET /api/permission/role-permissions
+  columns:
+  - field: role_id
+    title: 角色 ID
+  - field: role_name
+    title: 角色
+  - field: permission_id
+    title: 权限 ID
+  - field: permission_code
+    title: 权限码
+  - field: permission_name
+    title: 权限
