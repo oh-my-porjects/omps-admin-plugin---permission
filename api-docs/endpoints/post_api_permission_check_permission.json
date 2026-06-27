@@ -1,0 +1,86 @@
+{
+  "method": "POST",
+  "path": "/api/permission/check-permission",
+  "endpoint_key": "POST /api/permission/check-permission",
+  "title": "校验角色权限",
+  "description": "检查指定角色是否直接拥有指定权限点编码，且角色状态为 enabled。",
+  "auth": "internal",
+  "params": [
+    {
+      "name": "role_id",
+      "type": "string",
+      "required": true,
+      "constraint": "12 位 base62 ID 或 UUID",
+      "description": "role 模块里的角色 ID。"
+    },
+    {
+      "name": "permission_code",
+      "type": "string",
+      "required": true,
+      "constraint": "3-80 位权限点编码",
+      "description": "权限点编码。"
+    }
+  ],
+  "request_example": {
+    "role_id": "AdminRole001",
+    "permission_code": "users.read"
+  },
+  "response": {
+    "description": "返回权限是否允许和角色状态。",
+    "data_type": "object",
+    "fields": [
+      {
+        "name": "allowed",
+        "type": "boolean",
+        "description": "是否允许。"
+      },
+      {
+        "name": "role_status",
+        "type": "string",
+        "description": "角色状态，enabled 或 disabled。",
+        "enum": {
+          "enabled": "启用",
+          "disabled": "停用"
+        }
+      }
+    ],
+    "error_codes": [
+      {
+        "status": 2171,
+        "msg": "请求体解析失败或角色 ID 缺失格式不合法。"
+      },
+      {
+        "status": 2172,
+        "msg": "权限点标识缺失或格式不合法。"
+      },
+      {
+        "status": 2173,
+        "msg": "角色不存在。"
+      },
+      {
+        "status": 2174,
+        "msg": "权限点不存在。"
+      },
+      {
+        "status": 2175,
+        "msg": "权限校验失败。"
+      }
+    ]
+  },
+  "response_example": {
+    "status": 0,
+    "data": {
+      "allowed": true,
+      "role_status": "enabled"
+    },
+    "msg": ""
+  },
+  "rules": [
+    {
+      "category": "security",
+      "title": "校验角色权限 鉴权边界",
+      "body": "该接口按 auth=internal 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：检查指定角色是否直接拥有指定权限点编码，且角色状态为 enabled。",
+      "code_loc": "main.go:128"
+    }
+  ]
+}

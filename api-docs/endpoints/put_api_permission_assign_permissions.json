@@ -1,0 +1,102 @@
+{
+  "method": "PUT",
+  "path": "/api/permission/assign-permissions",
+  "endpoint_key": "PUT /api/permission/assign-permissions",
+  "title": "分配角色权限",
+  "description": "覆盖指定角色绑定的权限点列表，并校验不能超出父角色权限范围，也不能导致子角色越权。",
+  "auth": "admin_session",
+  "params": [
+    {
+      "name": "role_id",
+      "type": "string",
+      "required": true,
+      "constraint": "12 位 base62 ID 或 UUID",
+      "description": "要分配权限的 role 模块角色 ID。"
+    },
+    {
+      "name": "permission_ids",
+      "type": "array",
+      "item_type": "string",
+      "required": true,
+      "constraint": "每项为 12 位 base62 ID，重复值会去重",
+      "description": "权限点 ID 列表。"
+    }
+  ],
+  "request_example": {
+    "role_id": "AdminRole001",
+    "permission_ids": [
+      "UsersRead001"
+    ]
+  },
+  "response": {
+    "description": "返回角色 ID、最终权限点 ID 列表和更新时间。",
+    "data_type": "object",
+    "fields": [
+      {
+        "name": "role_id",
+        "type": "string",
+        "description": "角色 ID。"
+      },
+      {
+        "name": "permission_ids",
+        "type": "array",
+        "item_type": "string",
+        "description": "最终绑定的权限点 ID 列表。"
+      },
+      {
+        "name": "updated_at",
+        "type": "string",
+        "description": "角色更新时间，RFC3339 字符串。"
+      }
+    ],
+    "error_codes": [
+      {
+        "status": 2161,
+        "msg": "请求体解析失败、角色 ID 缺失或格式不合法。"
+      },
+      {
+        "status": 2162,
+        "msg": "角色不存在。"
+      },
+      {
+        "status": 2163,
+        "msg": "权限点 ID 列表格式不合法。"
+      },
+      {
+        "status": 2164,
+        "msg": "存在不存在的权限点。"
+      },
+      {
+        "status": 2165,
+        "msg": "子角色权限不能超出父角色权限范围。"
+      },
+      {
+        "status": 2166,
+        "msg": "清理权限会导致子角色越权。"
+      },
+      {
+        "status": 2167,
+        "msg": "分配权限失败。"
+      }
+    ]
+  },
+  "response_example": {
+    "status": 0,
+    "data": {
+      "role_id": "AdminRole001",
+      "permission_ids": [
+        "UsersRead001"
+      ],
+      "updated_at": "2026-05-28T00:00:00Z"
+    },
+    "msg": ""
+  },
+  "rules": [
+    {
+      "category": "security",
+      "title": "分配角色权限 鉴权边界",
+      "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：覆盖指定角色绑定的权限点列表，并校验不能超出父角色权限范围，也不能导致子角色越权。",
+      "code_loc": "main.go:127"
+    }
+  ]
+}

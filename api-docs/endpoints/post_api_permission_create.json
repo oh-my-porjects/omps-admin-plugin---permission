@@ -1,0 +1,114 @@
+{
+  "method": "POST",
+  "path": "/api/permission/create",
+  "endpoint_key": "POST /api/permission/create",
+  "title": "创建权限点",
+  "description": "创建一个权限点，权限点编码在模块内唯一。",
+  "auth": "admin_session",
+  "params": [
+    {
+      "name": "code",
+      "type": "string",
+      "required": true,
+      "constraint": "3-80 位小写字母、数字、点、下划线或横线",
+      "description": "权限点编码。"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "required": true,
+      "constraint": "2-30 个字符",
+      "description": "权限点名称。"
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "required": false,
+      "constraint": "最多 200 个字符",
+      "description": "权限点说明。"
+    }
+  ],
+  "request_example": {
+    "code": "wallet.order.approve",
+    "name": "审核充值订单",
+    "description": "允许审核银行卡充值订单"
+  },
+  "response": {
+    "description": "返回新创建的权限点。",
+    "data_type": "object",
+    "fields": [
+      {
+        "name": "permission_id",
+        "type": "string",
+        "description": "权限点 ID，12 位 base62。"
+      },
+      {
+        "name": "code",
+        "type": "string",
+        "description": "权限点编码。",
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "成功"
+          },
+          {
+            "value": 1,
+            "label": "失败或未注册"
+          }
+        ]
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "description": "权限点名称。"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "description": "权限点说明。"
+      },
+      {
+        "name": "created_at",
+        "type": "string",
+        "description": "创建时间，RFC3339 字符串。"
+      }
+    ],
+    "error_codes": [
+      {
+        "status": 2141,
+        "msg": "请求体解析失败或权限点编码格式不合法。"
+      },
+      {
+        "status": 2142,
+        "msg": "权限点名称缺失、长度不合法或说明过长。"
+      },
+      {
+        "status": 2143,
+        "msg": "权限点标识已存在。"
+      },
+      {
+        "status": 2144,
+        "msg": "创建权限点失败。"
+      }
+    ]
+  },
+  "response_example": {
+    "status": 0,
+    "data": {
+      "permission_id": "Perm00000001",
+      "code": "wallet.order.approve",
+      "name": "审核充值订单",
+      "description": "允许审核银行卡充值订单",
+      "created_at": "2026-05-28T00:00:00Z"
+    },
+    "msg": ""
+  },
+  "rules": [
+    {
+      "category": "security",
+      "title": "创建权限点 鉴权边界",
+      "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：创建一个权限点，权限点编码在模块内唯一。",
+      "code_loc": "main.go:125"
+    }
+  ]
+}

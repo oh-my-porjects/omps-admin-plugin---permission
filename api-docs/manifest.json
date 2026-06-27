@@ -1,0 +1,52 @@
+{
+  "module": "permission",
+  "module_title": "权限管理",
+  "version": 1,
+  "endpoints": [
+    {
+      "key": "GET /api/permission/hello",
+      "file": "endpoints/get_api_permission_hello.json"
+    },
+    {
+      "key": "GET /api/permission/list",
+      "file": "endpoints/get_api_permission_list.json"
+    },
+    {
+      "key": "POST /api/permission/create",
+      "file": "endpoints/post_api_permission_create.json"
+    },
+    {
+      "key": "GET /api/permission/role-permissions",
+      "file": "endpoints/get_api_permission_role_permissions.json"
+    },
+    {
+      "key": "PUT /api/permission/assign-permissions",
+      "file": "endpoints/put_api_permission_assign_permissions.json"
+    },
+    {
+      "key": "POST /api/permission/check-permission",
+      "file": "endpoints/post_api_permission_check_permission.json"
+    },
+    {
+      "key": "POST /api/permission/admin/ping",
+      "file": "endpoints/post_api_permission_admin_ping.json"
+    },
+    {
+      "key": "POST /_internal/method-call/permission",
+      "file": "endpoints/post_internal_method_call_permission.json"
+    },
+    {
+      "key": "POST /_internal/scheduled-trigger/permission",
+      "file": "endpoints/post_internal_scheduled_trigger_permission.json"
+    },
+    {
+      "key": "POST /_internal/selftest/permission",
+      "file": "endpoints/post_internal_selftest_permission.json"
+    }
+  ],
+  "ws_events": [],
+  "components": {
+    "schemas": [],
+    "enums": []
+  }
+}

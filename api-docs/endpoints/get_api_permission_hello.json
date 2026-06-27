@@ -1,0 +1,42 @@
+{
+  "method": "GET",
+  "path": "/api/permission/hello",
+  "endpoint_key": "GET /api/permission/hello",
+  "title": "模块探活",
+  "description": "返回 permission 模块名称和当前版本。",
+  "auth": "admin_session",
+  "params": [],
+  "response": {
+    "description": "模块基础信息。",
+    "data_type": "object",
+    "fields": [
+      {
+        "name": "module",
+        "type": "string",
+        "description": "模块名称。"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "description": "模块版本。"
+      }
+    ],
+    "error_codes": []
+  },
+  "response_example": {
+    "status": 0,
+    "data": {
+      "module": "permission",
+      "version": "dev"
+    },
+    "msg": "ok"
+  },
+  "rules": [
+    {
+      "category": "security",
+      "title": "模块探活 鉴权边界",
+      "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：返回 permission 模块名称和当前版本。",
+      "code_loc": "main.go:120"
+    }
+  ]
+}

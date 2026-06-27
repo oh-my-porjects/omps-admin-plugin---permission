@@ -1,0 +1,105 @@
+{
+  "method": "GET",
+  "path": "/api/permission/role-permissions",
+  "endpoint_key": "GET /api/permission/role-permissions",
+  "title": "查询角色权限绑定",
+  "description": "分页查询角色与权限点的绑定关系，角色来源为 role 模块，可按角色 ID 过滤。",
+  "auth": "admin_session",
+  "params": [
+    {
+      "name": "role_id",
+      "type": "string",
+      "required": false,
+      "constraint": "12 位 base62 ID 或 UUID",
+      "description": "role 模块里的角色 ID。"
+    },
+    {
+      "name": "page",
+      "type": "integer",
+      "required": true,
+      "constraint": "大于等于 1",
+      "description": "页码。"
+    },
+    {
+      "name": "page_size",
+      "type": "integer",
+      "required": true,
+      "constraint": "1-100",
+      "description": "每页数量。"
+    }
+  ],
+  "response": {
+    "description": "返回角色权限绑定分页列表。",
+    "data_type": "object",
+    "fields": [
+      {
+        "name": "items",
+        "type": "array",
+        "description": "绑定关系列表。",
+        "fields": [
+          {
+            "name": "role_id",
+            "type": "string",
+            "description": "角色 ID。"
+          },
+          {
+            "name": "role_name",
+            "type": "string",
+            "description": "角色名称。"
+          },
+          {
+            "name": "permission_id",
+            "type": "string",
+            "description": "权限点 ID。"
+          },
+          {
+            "name": "permission_code",
+            "type": "string",
+            "description": "权限点编码。"
+          },
+          {
+            "name": "permission_name",
+            "type": "string",
+            "description": "权限点名称。"
+          },
+          {
+            "name": "created_at",
+            "type": "string",
+            "description": "绑定创建时间，RFC3339 字符串。"
+          }
+        ]
+      },
+      {
+        "name": "total",
+        "type": "integer",
+        "description": "总数量。"
+      }
+    ],
+    "error_codes": [
+      {
+        "status": 2168,
+        "msg": "分页参数或角色 ID 参数格式不合法。"
+      },
+      {
+        "status": 2169,
+        "msg": "查询角色权限绑定失败。"
+      }
+    ]
+  },
+  "response_example": {
+    "status": 0,
+    "data": {
+      "items": [],
+      "total": 0
+    },
+    "msg": ""
+  },
+  "rules": [
+    {
+      "category": "security",
+      "title": "查询角色权限绑定 鉴权边界",
+      "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：分页查询角色与权限点的绑定关系，角色来源为 role 模块，可按角色 ID 过滤。",
+      "code_loc": "main.go:126"
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "method": "GET",
+  "path": "/api/permission/list",
+  "endpoint_key": "GET /api/permission/list",
+  "title": "查询权限点列表",
+  "description": "分页查询权限点，可按关键词搜索权限点编码、名称或说明。",
+  "auth": "admin_session",
+  "params": [
+    {
+      "name": "page",
+      "type": "integer",
+      "required": true,
+      "constraint": "大于等于 1",
+      "description": "页码。"
+    },
+    {
+      "name": "page_size",
+      "type": "integer",
+      "required": true,
+      "constraint": "1-100",
+      "description": "每页数量。"
+    },
+    {
+      "name": "keyword",
+      "type": "string",
+      "required": false,
+      "constraint": "最多 80 个字符",
+      "description": "搜索关键词。"
+    }
+  ],
+  "response": {
+    "description": "返回权限点分页列表。",
+    "data_type": "object",
+    "fields": [
+      {
+        "name": "items",
+        "type": "array",
+        "description": "权限点列表。",
+        "fields": [
+          {
+            "name": "permission_id",
+            "type": "string",
+            "description": "权限点 ID，12 位 base62。"
+          },
+          {
+            "name": "code",
+            "type": "string",
+            "description": "权限点编码。"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "description": "权限点名称。"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "description": "权限点说明。"
+          },
+          {
+            "name": "created_at",
+            "type": "string",
+            "description": "创建时间，RFC3339 字符串。"
+          }
+        ]
+      },
+      {
+        "name": "total",
+        "type": "integer",
+        "description": "总数量。"
+      }
+    ],
+    "error_codes": [
+      {
+        "status": 2151,
+        "msg": "分页参数不合法。"
+      },
+      {
+        "status": 2152,
+        "msg": "关键词参数过长。"
+      },
+      {
+        "status": 2153,
+        "msg": "查询权限点列表失败。"
+      }
+    ]
+  },
+  "response_example": {
+    "status": 0,
+    "data": {
+      "items": [],
+      "total": 0
+    },
+    "msg": ""
+  },
+  "rules": [
+    {
+      "category": "security",
+      "title": "查询权限点列表 鉴权边界",
+      "body": "该接口按 auth=admin_session 执行访问控制；未满足身份、内部令牌、后台会话或 API key 要求时必须拒绝主流程。接口职责：分页查询权限点，可按关键词搜索权限点编码、名称或说明。",
+      "code_loc": "main.go:124"
+    }
+  ]
+}
