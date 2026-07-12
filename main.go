@@ -119,7 +119,7 @@ var Plugin = &PermissionPlugin{}
 var Routes = map[string]http.HandlerFunc{
 	// 前台接口示例（以 /api/ 开头）
 	"GET /api/permission/hello": handleHello,
-	// 权限点 CRUD（路径跟 admin-web.yaml view.api 对齐）
+	// 权限点 CRUD，供 V4 capability 目录和 admin-intents 声明引用。
 	// task/inner_plugin.md §4.3: permission 模块只负责「权限点」，角色相关由 role 模块负责
 	// 避免跟 admin_role 老 plugin / role 新 plugin 路由冲突，全部 rename 到 /api/permission/*
 	"GET /api/permission/list":               handlePermissionList,
