@@ -87,6 +87,8 @@ type PluginContext struct {
     LifecycleCtx   context.Context   // Reload/Stop 开始时 Done()，后台 worker 必须监听此信号
     RegisterWorker func() func()     // goroutine 启动前调用，返回 dereg 函数供 defer
     IsUnloading    func() bool       // 查询模块是否处于 unloading 状态
+    InternalRequest func(context.Context, string, string, []byte, http.Header) (int, http.Header, []byte, error)
+                                    // 同一 runtime 内模块调用；仅接收相对路径，令牌由 runtime 处理
 }
 ```
 
