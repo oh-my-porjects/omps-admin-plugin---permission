@@ -40,47 +40,41 @@ pages:
         min_width: 180
     actions:
       - key: permission.list.action.create
-        type: navigate
+        type: open-dialog
         source: page
         title: { fallback: 新建权限点 }
-        target_page_key: permission.create
-
-  - key: permission.create
-    title: { fallback: 新建权限点 }
-    route: /system/permissions/create
-    menu_hidden: true
-    menu_key: system.permission_create
-    menu_title: { fallback: 新建权限点 }
-    order: 121
-    template: { id: standard-form, version: 1.0.0 }
-    size: md
-    fields:
-      - binding: code
-        label: { fallback: 权限码 }
-        control: input
-        required: true
-        placeholder: { fallback: 例如 admin.account.manage }
-      - binding: name
-        label: { fallback: 名称 }
-        control: input
-        required: true
-      - binding: description
-        label: { fallback: 说明 }
-        control: textarea
-    actions:
-      - key: permission.create.action.submit
-        type: submit
-        source: form
-        title: { fallback: 创建权限点 }
-        capability_key: permission.endpoint.post_api_permission_create
-        danger: confirm
-        confirm:
-          title: { fallback: 确认创建权限点？ }
-          description: { fallback: 新权限点创建后可被角色引用并影响后台访问控制。 }
-        bindings:
-          code: { source: form, key: code, required: true }
-          name: { source: form, key: name, required: true }
-          description: { source: form, key: description }
+        overlay:
+          type: open-dialog
+          title: { fallback: 新建权限点 }
+          template: { id: standard-form, version: 1.0.0 }
+          size: md
+          fields:
+            - binding: code
+              label: { fallback: 权限码 }
+              control: input
+              required: true
+              placeholder: { fallback: 例如 admin.account.manage }
+            - binding: name
+              label: { fallback: 名称 }
+              control: input
+              required: true
+            - binding: description
+              label: { fallback: 说明 }
+              control: textarea
+          submit_action:
+            key: permission.list.action.create.submit
+            type: submit
+            source: form
+            title: { fallback: 创建权限点 }
+            capability_key: permission.endpoint.post_api_permission_create
+            danger: confirm
+            confirm:
+              title: { fallback: 确认创建权限点？ }
+              description: { fallback: 新权限点创建后可被角色引用并影响后台访问控制。 }
+            bindings:
+              code: { source: form, key: code, required: true }
+              name: { source: form, key: name, required: true }
+              description: { source: form, key: description }
 
   - key: permission.role_bindings
     title: { fallback: 角色权限绑定 }
@@ -123,38 +117,32 @@ pages:
         min_width: 180
     actions:
       - key: permission.role_bindings.action.assign
-        type: navigate
+        type: open-dialog
         source: row
         title: { fallback: 分配权限 }
-        target_page_key: permission.assign
         bindings:
           role_id: { source: row, key: role_id, required: true }
-
-  - key: permission.assign
-    title: { fallback: 分配角色权限 }
-    route: /system/role-permissions/assign
-    menu_hidden: true
-    menu_key: system.permission_assign
-    menu_title: { fallback: 分配角色权限 }
-    order: 122
-    template: { id: standard-form, version: 1.0.0 }
-    size: md
-    fields:
-      - binding: permission_ids
-        label: { fallback: 权限 ID 列表 }
-        control: input-tag
-        required: true
-        placeholder: { fallback: 输入权限 ID 后按回车添加 }
-    actions:
-      - key: permission.assign.action.submit
-        type: submit
-        source: form
-        title: { fallback: 保存权限绑定 }
-        capability_key: permission.endpoint.put_api_permission_assign_permissions
-        danger: confirm
-        confirm:
-          title: { fallback: 确认更新角色权限？ }
-          description: { fallback: 保存后将覆盖当前角色的权限绑定。 }
-        bindings:
-          role_id: { source: route, key: role_id, required: true }
-          permission_ids: { source: form, key: permission_ids, required: true, fallback: [] }
+        overlay:
+          type: open-dialog
+          title: { fallback: 分配角色权限 }
+          template: { id: standard-form, version: 1.0.0 }
+          size: md
+          fields:
+            - binding: permission_ids
+              label: { fallback: 权限 ID 列表 }
+              control: input-tag
+              required: true
+              placeholder: { fallback: 输入权限 ID 后按回车添加 }
+          submit_action:
+            key: permission.role_bindings.action.assign.submit
+            type: submit
+            source: form
+            title: { fallback: 保存权限绑定 }
+            capability_key: permission.endpoint.put_api_permission_assign_permissions
+            danger: confirm
+            confirm:
+              title: { fallback: 确认更新角色权限？ }
+              description: { fallback: 保存后将覆盖当前角色的权限绑定。 }
+            bindings:
+              role_id: { source: overlay, key: role_id, required: true }
+              permission_ids: { source: form, key: permission_ids, required: true, fallback: [] }

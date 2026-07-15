@@ -45,17 +45,7 @@
       {
         "name": "code",
         "type": "string",
-        "description": "权限点编码。",
-        "enum_values": [
-          {
-            "value": 0,
-            "label": "成功"
-          },
-          {
-            "value": 1,
-            "label": "失败或未注册"
-          }
-        ]
+        "description": "权限点编码。"
       },
       {
         "name": "name",
